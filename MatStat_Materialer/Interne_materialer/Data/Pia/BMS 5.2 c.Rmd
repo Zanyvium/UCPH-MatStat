@@ -1,0 +1,46 @@
+---
+title: "BMS 5.2 c"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+Idet vi lige har vist at likelihood-ratio størrelsen er en pivot kunne man f.eks lave et 95% kinfidensinterval for $\theta$ ved : $C=\{\theta | \Lambda(X,\theta)\leq q_{0.95}\}$  Hvor $q_{0.95}$ er 95% kvantilen i fordelingen for $\Lambda(X,\theta)$ som man kan finde ved simulation;
+```{r}
+#vi skal bruge denne oakke for at have funktionen rvonmises
+#første gang vi bruger pakken skal vi køre nedestående kode 
+
+#for så at bruge den senere skal man køre 
+
+library(circular)
+```
+
+```{r}
+#set values
+
+n <- 10000
+theta<-0
+kappa <- 1
+
+xsim <- as.vector(rvonmises(n, pi, kappa, control.circular = list()))-pi
+
+
+
+LRsim <-2*kappa*(1-cos(xsim-theta))
+
+
+
+#kvantil
+Y <- LRsim[order(LRsim)]
+Y[9500]
+```
+I pakken gives værdier mellem 0 og $2\pi$ hvor vores parametrisering er for $(-\pi, \pi]$, hvorfor vi trækker $\pi$ fra de simulerede værdier. Derudover da 0 er centrum for $\theta$ i vores paramtetrisering svarer det altså til $\pi$ i den anden paramtrisering, hvrofor $\theta=0$ svarer til til at vi sætter $\pi$ ind i rvonmises funktionen i R;
+Vi kan opskrive intervallet eksplicit ved brug af kvantilen og en observeret X:
+
+$ C(X) = \{\theta | \Lambda(X,\theta)\leq q_{0.95}\} = \{\theta | 2\kappa(1-cos(X-\theta))\leq q_{0.95}\}$
+$\{\theta | -cos(X-\theta)\leq \frac{q_{0.95}}{2\kappa}-1\} = \{\theta | cos(X-\theta)\leq -\frac{q_{0.95}}{2\kappa}+1\}$
+$\{\theta | X-\theta\leq arccos\right(-\frac{q_{0.95}}{2\kappa}+1\left)= \{\theta | X - arccos\right(-\frac{q_{0.95}}{2\kappa}+11\left)\leq \theta\}$
+

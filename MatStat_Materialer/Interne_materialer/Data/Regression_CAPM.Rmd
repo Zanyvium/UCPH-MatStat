@@ -1,0 +1,162 @@
+---
+title: 'Regression og CAPM'
+author: "Niels Richard Hansen"
+date: "25. februar, 2021"
+output:
+  html_document:
+    code_folding: show
+    theme: sandstone
+  pdf_document: default
+---
+
+Det dokument gennemgår analysen fra EH eksempel 11.13 i R. Dokumentet 
+viser nogle R-tekniske løsninger, og kommentarerne
+omkring selve analysen er meget sparsomme, og skal ikke ses som fyldestgørende
+for hvordan en praktisk dataanalyse skal se ud. 
+
+Vi vil bruge diverse funktioner fra Tidyverse, så pakken indlæses først.
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+
+Vi indlæser data fra EH eksempel 11.13.
+
+```{r}
+CAPM <- read_csv("../Data/CAPM.csv")
+```
+
+Scatter plots af de tre variable mod hinanden.
+
+```{r, out.width="32%", fig.show="hold"}
+qplot(r, R, data = CAPM, size = I(3), color = I("blue"))
+qplot(M, R, data = CAPM, size = I(3), color = I("blue"))
+qplot(r, M, data = CAPM, size = I(3), color = I("blue"))
+```
+
+Vi kan også plotte af de tre variable over tid, som giver god 
+mening for det her datasæt. 
+
+```{r, fig.height=2, fig.show="hold"}
+qplot(factor(Month, levels = Month), R, data = CAPM, size = I(2), color = I("blue")) + geom_line(aes(group = 1), color = "blue")
+qplot(factor(Month, levels = Month), M, data = CAPM, size = I(2), color = I("red")) + geom_line(aes(group = 1), color = "red")
+qplot(factor(Month, levels = Month), r, data = CAPM, size = I(2), color = I("violet")) + geom_line(aes(group = 1), color = "violet")
+```
+
+# Regressionsmodellen
+
+Vi genfinder nu den fittede model fra EH eksempel 11.13.
+
+```{r}
+CAPM_lm <- lm(R ~ M + r, data = CAPM)
+summary(CAPM_lm)
+```
+
+# Designmatricen 
+
+Vi kan konstruere designmatricen ved "håndkraft" fra data på følgende måde:
+
+```{r}
+A <- matrix(c(rep(1, 20), CAPM$M, CAPM$r), nrow = 20)
+A
+```
+
+Vi kan nu genfinde estimaterne ved løsning af et lineært ligningssystem.
+
+```{r}
+solve(t(A) %*% A, t(A) %*% CAPM$R)
+```
+
+Designmatricen kan vi også trække ud af lm-objektet eller konstruere direkte 
+med funktionen `model.matrix()` 
+
+```{r}
+model.matrix(CAPM_lm)
+model.matrix(~ M + r, data = CAPM)
+```
+
+# Residualplot
+
+Først plotter vi de rå residualer
+
+```{r, fig.height=3}
+qplot(fitted(CAPM_lm), residuals(CAPM_lm)) + 
+	geom_hline(yintercept = 0) +
+	geom_smooth()
+```
+
+og dernæst residualerne standardiseret med det centrale estimat for 
+spredningen. 
+
+```{r, fig.height=3}
+sigma_hat <- sqrt(sum(residuals(CAPM_lm)^2) / 17)  # Centralt variansestimate
+qplot(fitted(CAPM_lm), residuals(CAPM_lm) / sigma_hat) + 
+	geom_hline(yintercept = 0) +
+	geom_hline(yintercept = -2, linetype = 2) +
+	geom_hline(yintercept = 2, linetype = 2) +
+	geom_smooth() +
+	ylim(-3, 3)
+```
+
+Endelig plotter vi de standardiserede residualer (røde nedenfor), hvor der altså også er 
+devideret med $\sqrt{1 - h_{ii}}$, sammenholdt med residualerne ovenfor.
+
+```{r, fig.height=3}
+qplot(fitted(CAPM_lm), rstandard(CAPM_lm), color = I("red")) + 
+	geom_point(aes(y = residuals(CAPM_lm) / sigma_hat)) + 
+	geom_hline(yintercept = 0) +
+	geom_hline(yintercept = -2, linetype = 2) +
+	geom_hline(yintercept = 2, linetype = 2) +
+	geom_smooth() +
+	ylim(-3, 3)
+```
+
+Man kan observere, at effekten af division med $\sqrt{1 - h_{ii}}$ er ganske
+lille, men alle observationerne flytter udad. Vi kan udtrække $h_{ii}$ fra 
+lm-objektet med `hatvalues()`, hvis vi vil. 
+
+```{r}
+range(1 / sqrt(1 - hatvalues(CAPM_lm)))
+```
+
+For det her eksempel er det også værd at se på residualerne som 
+funktion af tid, og lave et lag-plot for at se, om der er afhængighed.
+
+```{r, out.width="50%", fig.show="hold"}
+qplot(1:20, rstandard(CAPM_lm)) + 
+	geom_smooth()
+qplot(rstandard(CAPM_lm)[-20], rstandard(CAPM_lm)[-1]) + 
+	geom_smooth(method = "lm")
+```
+
+Lag-plottet indikerer, at fejlene er negativt korrelerede. 
+
+Vi kan også lave et QQ-plot for at undersøge normalfordelingsantagelsen.
+Med kun 20 observationer er det ganske svært at afvise normalfordelingen. 
+
+```{r, fig.show="hold"}
+qqnorm(rstandard(CAPM_lm))
+qqline(rstandard(CAPM_lm))
+```
+
+## Konfidensintervaller
+
+Vi kan til slut genfinde konfidensintervallerne fra EH ved at bruge `confint()`
+på lm-objektet. Den omsætter estimater og standard errors til standard 
+konfidensintervaller baseret på den korrekte $t$-fordeling. 
+
+```{r}
+confint(CAPM_lm)
+```
+
+Reducerer vi modellen ved at fjerne interceptet fås et noget anderledes estimat,
+og en reduktion i standard errors for $\hat{\gamma}$. Det skyldes primært
+at $r$ varierer ganske lidt og interceptsøjlen og $r$ kommer til at være tæt 
+på hinanden. Om de ligefrem er tæt på at være kollineære er til diskussion.
+
+```{r}
+CAPM_lm_0 <- lm(R ~ M + r - 1, data = CAPM)
+summary(CAPM_lm_0)
+confint(CAPM_lm_0)
+```
+

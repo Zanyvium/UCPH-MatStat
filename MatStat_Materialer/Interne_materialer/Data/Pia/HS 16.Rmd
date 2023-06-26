@@ -1,0 +1,94 @@
+---
+title: "HS 16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readr)
+```
+
+
+vi indlæser data 
+```{r}
+pillbug <- read_table2("../pillbug.txt")
+```
+
+## 1 
+
+Eksperimentet lægger op til en etsidet variansanalyse, da vi kun undersøger en faktor, nemlig tid. 
+De enkelte X'ier (bækebiderne) er uafhængige, og normalfordelte. 
+
+```{r}
+A <- model.matrix(~ pillbug$group -1) 
+A
+
+?model.matrix #finde ud af hvilke paramtre der skal indgår i kommandoen
+```
+
+
+
+
+## 2
+
+```{r}
+boxplot(pillbug$time ~ pillbug$group)
+```
+
+Vi ser at den mindste observerede værdi ligger knapt under 50 for kontrolgruppen...
+
+
+vi fitter modellen, for et sidet variansanalyse;
+```{r}
+lm <- lm(pillbug$time ~ pillbug$group)
+fit <- fitted(lm) 
+res <- residuals(lm)
+rstad <- rstandard(lm)
+
+plot(fit, res)
+
+qqnorm(rstad)
+qqline(rstad)
+```
+vi finder at der ikke er varians homogentitet, da observationerne på venstre side har mindre varians end de to på højre siden (punkternes-linjes højde)
+
+
+
+
+## 3
+
+```{r}
+logtime <- log(pillbug$time)
+```
+ vi gentager 
+ 
+```{r}
+loglm <- lm(logtime~pillbug$group)
+logfit <- fitted(loglm)
+logstd <-rstandard(loglm)
+
+plot(logfit, logstd)
+qqnorm(logstd)
+```
+ modellen ser mere fornuftigt ud. 
+ 
+ det hjælper at log transformere, da 
+ 
+ 
+ 
+## 4 
+
+hypotesen er at middelværdien i de tre grupper er ens, vi bruger log(tid), da vi i de forgående spørgsmål fandt at den opfylder varianshomogenitet og normalfordelingsantagelsen. 
+
+
+```{r}
+logModel0 <- lm(logtime ~ 1)
+summary(logModel0)
+
+anova(logModel0, loglm)
+```
+
+
+
+

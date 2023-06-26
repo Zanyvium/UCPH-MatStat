@@ -1,0 +1,280 @@
+---
+title: "HS13.3"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(MASS)
+```
+
+
+## 1 Indlæs data, og fit den kvadratiske regressionsmodel;
+
+Vi indlæser data
+```{r}
+setwd("~/Desktop/MatStat/Data")
+paddy <- read.table("paddy.txt", header=TRUE)
+```
+
+
+kvadrerer days variablen, og opstiller en lineær regression;
+```{r}
+daysSqr <- paddy$days^2 
+kvadReg <- lm(yield ~ days + daysSqr, data=paddy)
+
+
+summary(kvadReg) 
+```
+vi får samme estimater som i eksempel 11.10 i bogen; 
+alpha(intercept) = -1070.3977, beta(days) = 293.4829, gamma(dayssqr)=-4.5358
+resiudal std error = 203.9
+
+
+og finder $$\sigma^2$$ ved at kvadrere reidual standard error værdien.
+```{r}
+203.9*203.9 
+```
+
+
+## 2 Lav det tilhørende residualplot.
+
+```{r}
+plot(paddy) #plotter oprindelige data
+```
+Vi ser at plottet er tydligt er parabel frormet, hvilket tyder på misspecificeret middelværdi.
+
+vi plotter de fittede værdier;
+```{r}
+res <- rstandard(kvadReg)
+fit <- fitted(kvadReg)
+plot(fit,res);abline(h=0,lty=2) 
+```
+kan se at plottet nu er pænt spredt, og ikke umiddelbart tyder på fejl mht. middelværdien
+ 
+ 
+
+
+
+
+
+
+Lad som om sande parametre er lig estimaterne. 
+Vi simulerer nu fra den antagede normalfordeling;
+
+## 3 Kør kommandoer og forklar hvorfor simYield indeholder en simulation fra modellen. Lav plot
+
+vi fitter en ny middelværdivektor, og trækker standard error ud, for at simulere en normalfordeling med 16 observationer;
+```{r}
+xi0 <- fitted(kvadReg) 
+sigma0 <- summary(kvadReg)$sigma 
+simYield <- rnorm(16, xi0, sigma0)
+```
+
+
+og plotter igen;
+```{r}
+plot(paddy$days, simYield)
+```
+det ser fornuftigt ud, simulationen ligner plottet for de oprindelige data
+
+
+## 4 fit det kvadratiske regressionsmodel til de simulerede data, plot
+vi opstiller modellen
+```{r}
+kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+summary(kvadRegSim)
+```
+
+fitter værdierne
+```{r}
+resSim <- rstandard(kvadRegSim)
+fitSim <- fitted(kvadRegSim)
+```
+
+og plotter
+```{r}
+
+par(mfrow=c(1,2))
+plot(fitSim,resSim, main="Simulation");abline(h=0,lty=2)
+plot(fit,res, main="Data");abline(h=0,lty=2)
+```
+simulationen virker trompetformet, data virker pænt spredt
+
+
+
+## 5 Gentag simulationen flere gange
+bruger set.seed for at samle data fra samme random "set"
+og plotter simulationerne op ved siden af hinaden med par(...)
+Vi plotter først et plot med vores data.
+vha for loop simulerer vi så en normalfordeling med 16 observationer, middelværdivektor fra delopgave 3 og standard error ogsa fra delopgave 3
+Dernæst fittes kvadratisk regressionsmodel til de simulerede data
+og i plotter fittede værdier med linie igennem 0
+```{r}
+set.seed(2)
+par(mfrow=c(3,3))
+plot(fit,res, main="Data");abline(h=0,lty=2) # scatterplot
+for (i in 1:8){
+  simYield <- rnorm(16, xi0, sigma0)
+  kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+  resSim <- rstandard(kvadRegSim)
+  fitSim <- fitted(kvadRegSim)
+  plot(fitSim,resSim, main=c("Simulation", i));abline(h=0,lty=2)
+}
+```
+
+
+
+## 6 estimer perfekte optimal høsttidspunkt og maksimal udbytte
+vi trækker koefficienterne ud fra den kvadratiske regressions model og bruger toppunktsformlen for at finde den optimale dag;
+```{r}
+est <- coef(kvadReg) 
+optDay <- -est[2]/2/est[3] 
+```
+og videre maksimal udbytte;
+```{r}
+optYield <- - (est[2]^2 - 4*est[1]*est[3]) / 4 / est[3]
+```
+
+<!---hvorfor est[3] og ikke est[1] som a?--->
+
+
+
+## 7 forklar hvorfor teorien i EH kap 9 og 10 ikke giver fordelingen af estimatoren for det optimale høsttidspunkt.
+
+Teorien er pæn for affine transformationer af normalfordelingen,
+men ovenstående transformation er ikke affin.
+ 
+
+
+## 8 Simuler
+ligesom i 3;
+```{r}
+set.seed(4)
+simYield <- rnorm(16, xi0, sigma0)
+kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+estSim <- coef(kvadRegSim)
+optDaySim <- -estSim[2]/2/estSim[3]
+optYieldSim <- - (estSim[2]^2 - 4*estSim[1]*estSim[3]) / 4 / estSim[3]
+c(optDaySim,optYieldSim)
+```
+
+
+
+## 9 simuler mange gange vha loop
+
+```{r}
+
+set.seed(5)
+resSim <- matrix(NA, 1000, 2)   # Initialiering af matrix
+for (i in 1:1000){           # Løkke
+  simYield <- rnorm(16, xi0, sigma0)
+  kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+  estSim <- coef(kvadRegSim)
+  optDaySim <- -estSim[2]/2/estSim[3]
+  optYieldSim <- - (estSim[2]^2 - 4*estSim[1]*estSim[3]) / 4 / estSim[3]
+  resSim[i,1] <- optDaySim
+  resSim[i,2] <- optYieldSim
+}
+```
+
+
+
+
+## 10 tegn histogrammer
+```{r}
+par(mfrow=c(2,1))
+hist(resSim[,1], main="optDay")
+hist(resSim[,2], main="optYield")
+
+
+fDay <- function(x) dnorm(x, mean = mean(resSim[,1]) , sd = sd(resSim[,1])) #normalfordelingslinien
+fYield <- function(x) dnorm(x,mean=mean(resSim[,2]), sd = sd(resSim[,2]))
+
+par(mfrow=c(2,1))
+hist(resSim[,1], main="optDay",prob=T); plot(fDay, 30,35,add=T)
+hist(resSim[,2], main="optYield",prob=T); plot(fYield, 3400,3900,add=T)
+```
+lavede en funktion af day hhv yield og tilføjet den som kurve til histogrammet
+
+
+
+
+
+## 11 Overvej hvordan du kan lave et (approksimativt) konfidensinterval
+
+```{r}
+quantile((resSim[,1]),c(0.025,0.975))
+quantile((resSim[,2]),c(0.025,0.975))
+```
+
+
+
+## 12 hvad der sker når der er problemer med middelværdien
+
+```{r}
+simYield <- rnorm(16, xi0, sigma0)
+linRegSim <- lm(simYield ~ paddy$days)
+linresSim <- rstandard(linRegSim)
+linfitSim <- fitted(linRegSim)
+par(mfrow=c(1,1))
+plot(linfitSim,linresSim, main=c("Simulation", i));abline(h=0,lty=2)
+
+```
+parabelformet
+
+```{r}
+set.seed(6)
+par(mfrow=c(3,3))
+for (i in 1:9){
+  simYield <- rnorm(16, xi0, sigma0)
+  linRegSim <- lm(simYield ~ paddy$days)
+  linresSim <- rstandard(linRegSim)
+  linfitSim <- fitted(linRegSim)
+  plot(linfitSim,linresSim, main=c("Simulation", i));abline(h=0,lty=2)
+}
+
+```
+
+
+
+## 13 hvad der sker nå̊r der er problemer med variansne
+
+```{r}
+newSD <- 25*(15-abs(paddy$days-31))
+newSD
+simYield <- rnorm(16, xi0, newSD)
+par(mfrow=c(1,1))
+plot(paddy$days, simYield)
+points(paddy$days, xi0, type="l")
+```
+klart parabel formet.
+
+
+```{r}
+kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+resSim <- rstandard(kvadRegSim)
+fitSim <- fitted(kvadRegSim)
+par(mfrow=c(1,1))
+plot(fitSim,resSim, main=c("Simulation", i));abline(h=0,lty=2)
+
+```
+klart trompet formet
+
+
+```{r}
+
+set.seed(8)
+par(mfrow=c(3,3))
+for (i in 1:9){
+  simYield <- rnorm(16, xi0, newSD)
+  kvadRegSim <- lm(simYield ~ paddy$days + daysSqr)
+  resSim <- rstandard(kvadRegSim)
+  fitSim <- fitted(kvadRegSim)
+  plot(fitSim,resSim, main=c("Simulation", i));abline(h=0,lty=2)
+}
+
+```
+
+
